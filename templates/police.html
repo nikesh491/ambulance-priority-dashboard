@@ -1,0 +1,212 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Police Control Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">EMERGENCY RESPONSE SYSTEM</p>
+      <h1>Police Control Dashboard</h1>
+      <p class="muted-light">Welcome, {{ username }}</p>
+    </div>
+    <a class="btn ghost" href="{{ url_for('logout') }}">Log out</a>
+  </header>
+
+  <main>
+    <section class="status-banner">
+      <span class="pulse"></span>
+      <div>
+        <strong id="emergencyStatus">Loading...</strong>
+        <p>Monitor ambulance movement and junction status.</p>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <article class="stat-card">
+        <span class="stat-label">Ambulance ID</span>
+        <strong id="ambulanceId">{{ ambulance_id }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Emergency</span>
+        <strong id="emergencyValue">Loading...</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Speed</span>
+        <strong><span id="speed">{{ speed }}</span> <small>km/h</small></strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Direction</span>
+        <strong id="direction">{{ direction }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Next junction</span>
+        <strong id="junction">{{ junction }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Current signal</span>
+        <strong id="currentSignal">{{ signal }}</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">LIVE GPS</p>
+      <h2>Ambulance location</h2>
+      <p class="muted">Dashboard connection: <strong id="connection">Connecting...</strong></p>
+
+      <div class="coordinates">
+        <div><span>Latitude</span><strong id="latitude">{{ latitude }}</strong></div>
+        <div><span>Longitude</span><strong id="longitude">{{ longitude }}</strong></div>
+        <div><span>Distance to junction</span><strong><span id="distance">{{ distance_km }}</span> km</strong></div>
+      </div>
+
+      <iframe id="map" class="map-frame" title="Ambulance GPS map"
+        src="https://maps.google.com/maps?q={{ latitude }},{{ longitude }}&z=15&output=embed"
+        loading="lazy"></iframe>
+
+      <a id="mapLink"
+         href="https://www.google.com/maps?q={{ latitude }},{{ longitude }}"
+         target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">TRAFFIC CONTROL</p>
+      <h2>Four-way traffic signals</h2>
+
+      <div class="signal-grid">
+        {% for road in ["NORTH", "SOUTH", "EAST", "WEST"] %}
+        <div class="signal-card">
+          <span>{{ road }}</span>
+          <strong id="signal-{{ road }}"
+            class="signal-badge {{ traffic_signals.get(road, 'RED')|lower }}">
+            {{ traffic_signals.get(road, 'RED') }}
+          </strong>
+        </div>
+        {% endfor %}
+      </div>
+
+      <p class="small-note">
+        Prototype controls update the web dashboard only. They do not directly operate the FPGA.
+        Never use this demo to control live road traffic.
+      </p>
+
+      <div class="button-row">
+        <button class="btn secondary" onclick="setSignal('NORTH')">North priority</button>
+        <button class="btn secondary" onclick="setSignal('SOUTH')">South priority</button>
+        <button class="btn secondary" onclick="setSignal('EAST')">East priority</button>
+        <button class="btn secondary" onclick="setSignal('WEST')">West priority</button>
+        <button class="btn danger" onclick="resetPriority()">Reset demo</button>
+      </div>
+      <p id="message" class="muted" role="status"></p>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">SERVER STATUS</p>
+      <h2>Connection information</h2>
+      <div class="health-grid">
+        <div><span>Flask server</span><strong id="serverStatus">Checking...</strong></div>
+        <div><span>Last data update</span><strong id="lastUpdated">Waiting for data</strong></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>FPGA-Based Ambulance Priority System · Prototype</footer>
+</div>
+
+<script>
+async function refreshDashboard() {
+  try {
+    const response = await fetch('/dashboard', {cache: 'no-store'});
+    if (!response.ok) throw new Error('Server unavailable');
+
+    const d = await response.json();
+
+    const fields = {
+      ambulanceId: 'ambulance_id',
+      speed: 'speed',
+      direction: 'direction',
+      junction: 'junction',
+      latitude: 'latitude',
+      longitude: 'longitude',
+      distance: 'distance_km',
+      currentSignal: 'signal'
+    };
+
+    for (const [elementId, key] of Object.entries(fields)) {
+      document.getElementById(elementId).textContent = d[key] ?? '—';
+    }
+
+    document.getElementById('emergencyStatus').textContent =
+      d.emergency ? 'EMERGENCY ACTIVE' : 'NO ACTIVE EMERGENCY';
+
+    document.getElementById('emergencyValue').textContent =
+      d.emergency ? 'ACTIVE' : 'INACTIVE';
+
+    document.getElementById('connection').textContent = 'ONLINE';
+    document.getElementById('serverStatus').textContent = 'ONLINE';
+    document.getElementById('lastUpdated').textContent =
+      d.last_updated || 'No external GPS update received';
+
+    document.getElementById('map').src =
+      `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed`;
+
+    document.getElementById('mapLink').href =
+      `https://www.google.com/maps?q=${d.latitude},${d.longitude}`;
+
+    for (const road of ['NORTH', 'SOUTH', 'EAST', 'WEST']) {
+      const value = (d.traffic_signals || {})[road] || 'RED';
+      const element = document.getElementById('signal-' + road);
+      element.textContent = value;
+      element.className = 'signal-badge ' + value.toLowerCase();
+    }
+  } catch (error) {
+    document.getElementById('connection').textContent = 'OFFLINE';
+    document.getElementById('serverStatus').textContent = 'OFFLINE';
+  }
+}
+
+async function setSignal(direction) {
+  const message = document.getElementById('message');
+
+  try {
+    const response = await fetch('/traffic-signals', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({direction})
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Request failed');
+
+    message.textContent = result.message;
+    await refreshDashboard();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+async function resetPriority() {
+  const message = document.getElementById('message');
+
+  try {
+    const response = await fetch('/priority/reset', {method: 'POST'});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Reset failed');
+
+    message.textContent = result.message;
+    await refreshDashboard();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+refreshDashboard();
+setInterval(refreshDashboard, 3000);
+</script>
+</body>
+</html>

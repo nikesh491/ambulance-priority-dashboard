@@ -1,0 +1,140 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ambulance Driver Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">EMERGENCY RESPONSE SYSTEM</p>
+      <h1>Driver Dashboard</h1>
+      <p class="muted-light">Welcome, {{ username }}</p>
+    </div>
+    <a class="btn ghost" href="{{ url_for('logout') }}">Log out</a>
+  </header>
+
+  <main>
+    <section class="status-banner">
+      <span class="pulse"></span>
+      <div>
+        <strong id="emergencyStatus">Loading status...</strong>
+        <p>Follow emergency procedures and drive safely.</p>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <article class="stat-card">
+        <span class="stat-label">Ambulance ID</span>
+        <strong id="ambulanceId">{{ ambulance_id }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Speed</span>
+        <strong><span id="speed">{{ speed }}</span> <small>km/h</small></strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Direction</span>
+        <strong id="direction">{{ direction }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Next junction</span>
+        <strong id="junction">{{ junction }}</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">GPS TRACKING</p>
+      <h2>Ambulance location</h2>
+      <p class="muted">Connection: <strong id="connection">Connecting...</strong></p>
+
+      <div class="coordinates">
+        <div><span>Latitude</span><strong id="latitude">{{ latitude }}</strong></div>
+        <div><span>Longitude</span><strong id="longitude">{{ longitude }}</strong></div>
+      </div>
+
+      <iframe id="map" class="map-frame" title="Ambulance map"
+        src="https://maps.google.com/maps?q={{ latitude }},{{ longitude }}&z=15&output=embed"
+        loading="lazy"></iframe>
+
+      <a id="mapLink"
+         href="https://www.google.com/maps?q={{ latitude }},{{ longitude }}"
+         target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">DEMO CONTROL</p>
+      <h2>Test ambulance direction</h2>
+      <p class="muted">These buttons change the dashboard's demo data. They do not detect GPS heading automatically.</p>
+      <div class="button-row">
+        <button class="btn secondary" onclick="updateDirection('NORTH')">North</button>
+        <button class="btn secondary" onclick="updateDirection('SOUTH')">South</button>
+        <button class="btn secondary" onclick="updateDirection('EAST')">East</button>
+        <button class="btn secondary" onclick="updateDirection('WEST')">West</button>
+      </div>
+      <p id="message" class="muted" role="status"></p>
+    </section>
+  </main>
+
+  <footer>FPGA-Based Ambulance Priority System · Prototype</footer>
+</div>
+
+<script>
+async function refreshDashboard() {
+  try {
+    const response = await fetch('/dashboard', {cache: 'no-store'});
+    if (!response.ok) throw new Error('Server unavailable');
+
+    const d = await response.json();
+
+    document.getElementById('ambulanceId').textContent = d.ambulance_id;
+    document.getElementById('speed').textContent = d.speed;
+    document.getElementById('direction').textContent = d.direction;
+    document.getElementById('junction').textContent = d.junction;
+    document.getElementById('latitude').textContent = d.latitude;
+    document.getElementById('longitude').textContent = d.longitude;
+
+    document.getElementById('emergencyStatus').textContent =
+      d.emergency ? 'EMERGENCY ACTIVE' : 'NO ACTIVE EMERGENCY';
+
+    document.getElementById('connection').textContent = 'ONLINE';
+
+    document.getElementById('map').src =
+      `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed`;
+
+    document.getElementById('mapLink').href =
+      `https://www.google.com/maps?q=${d.latitude},${d.longitude}`;
+  } catch (error) {
+    document.getElementById('connection').textContent = 'OFFLINE';
+  }
+}
+
+async function updateDirection(direction) {
+  const message = document.getElementById('message');
+
+  try {
+    const response = await fetch('/gps', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({direction})
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) throw new Error(result.message || 'Update failed');
+
+    message.textContent = 'Demo direction changed to ' + direction;
+    await refreshDashboard();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+refreshDashboard();
+setInterval(refreshDashboard, 3000);
+</script>
+</body>
+</html>

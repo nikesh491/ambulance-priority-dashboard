@@ -1,0 +1,46 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ambulance Priority | Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="brand-mark">+</div>
+    <p class="eyebrow">EMERGENCY RESPONSE SYSTEM</p>
+    <h1>Ambulance Priority</h1>
+    <p class="muted">Sign in to access your dashboard.</p>
+
+    {% if error %}
+      <div class="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <label for="role">Login as</label>
+      <select id="role" name="role" required>
+        <option value="driver">Ambulance Driver</option>
+        <option value="police">Police Officer</option>
+      </select>
+
+      <label for="username">Username</label>
+      <input id="username" name="username"
+             autocomplete="username" required>
+
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password"
+             autocomplete="current-password" required>
+
+      <button class="btn primary full" type="submit">Sign in</button>
+    </form>
+
+    <div class="demo-credentials">
+      <strong>Demo accounts</strong>
+      <span>Driver: driver / 1234</span>
+      <span>Police: police / 1234</span>
+    </div>
+  </main>
+</body>
+</html>
